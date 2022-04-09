@@ -38,9 +38,13 @@ def get_job(job_page, job_id):
     job_type_element = pagesoup.find("div", string="Full-time")
     if job_type_element is not None:
         job_dict["job_type_full_time"] = True
+    else:
+        job_dict["job_type_full_time"] = False
     job_type_element = pagesoup.find("div", string="Part-time")
     if job_type_element is not None:
         job_dict["job_type_part_time"] = True
+    else:
+        job_dict["job_type_part_time"] = False
     company_rating_element = pagesoup.find('div', attrs={"class": "icl-Ratings-starsCountWrapper"})
     if company_rating_element is not None and company_rating_element.has_attr("aria-label"):
         job_dict["company_rating_fulltext"] = company_rating_element["aria-label"]
@@ -71,12 +75,13 @@ list_dict_config_job_sites = [
     # },
     {
         "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04",
-        "list_length": 2, # Can be up to 50 for Indeed. Keep it small for testing
+        "url": "https://www.indeed.com/jobs?as_and&as_phr={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04",
+        "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 2, # seconds to sleep to prevent site from knowing you're a scraper
         "random_sleep_variation": 1, # add on to sleep to look more human
         "job_title": "nursing aide",
         "job_page": "https://www.indeed.com/viewjob?jk=",
+        "max_results": 150
     }
 ]
 
@@ -87,22 +92,27 @@ print("\nScraping\n")
 list_jobs_dict = []
 
 for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
-    url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
-        urllib.parse.quote(config_job_site_dict["job_title"], safe=""),
-        config_job_site_dict["list_length"])
-    print(f"getting {url}")
-    datetime_string = datetime.now().strftime("%A %B %d %H:%M:%S")
-    print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime_string}')
-    list_job_ids = get_jobs_IDs(url)
-    print(f'Opening up {len(list_job_ids)} job pages on {config_job_site_dict["job_site"]}')
-    for job_id in list_job_ids:
-        job_dict = get_job(config_job_site_dict["job_page"], job_id)
-        sleep_per_iteration_rand = config_job_site_dict["sleep_time_between_requests"] + round(random.random()*config_job_site_dict["random_sleep_variation"], 1)
-        print(f"Sleeping for {sleep_per_iteration_rand}...")
-        time.sleep(sleep_per_iteration_rand)
-        list_jobs_dict.append(job_dict)
+    pages = config_job_site_dict["max_results"] // config_job_site_dict["page_length"]
+    for page in list(range(pages)):
+        print(f"Pulling page {page} of {pages} pages...")
+
+        url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
+            urllib.parse.quote(config_job_site_dict["job_title"], safe=""),
+            page-1*config_job_site_dict["page_length"],
+            config_job_site_dict["page_length"])
+        print(f"Getting {url}")
+        datetime_string = datetime.now().strftime("%A %B %d %H:%M:%S")
+        print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime_string}')
+        list_job_ids = get_jobs_IDs(url)
+        print(f'Opening up {len(list_job_ids)} job pages on {config_job_site_dict["job_site"]}')
+        for job_id in list_job_ids:
+            job_dict = get_job(config_job_site_dict["job_page"], job_id)
+            sleep_per_iteration_rand = config_job_site_dict["sleep_time_between_requests"] + round(random.random()*config_job_site_dict["random_sleep_variation"], 1)
+            # print(f"Sleeping for {sleep_per_iteration_rand}...")
+            time.sleep(sleep_per_iteration_rand)
+            list_jobs_dict.append(job_dict)
 
     pd_jobs = pd.DataFrame(list_jobs_dict)
-    csv_path = f'./{config_job_site_dict["job_site"]}_{config_job_site_dict["job_title"]}_{datetime_string}.csv'
+    csv_path = f'./{config_job_site_dict["job_site"]}_{config_job_site_dict["job_title"]}_{datetime_string}.csv'.replace(" ", "_")
     print(f'Saving to {csv_path}')
     pd_jobs.to_csv(csv_path)
