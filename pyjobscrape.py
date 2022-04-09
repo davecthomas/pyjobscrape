@@ -1,4 +1,5 @@
 from urllib.request import Request, urlopen
+import urllib.parse
 from bs4 import BeautifulSoup as soup
 
 from datetime import datetime
@@ -54,8 +55,8 @@ list_dict_config_job_sites = [
     # },
     {
         "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr=nursing%20aide&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04",
-        "list_length": 5, # Can be up to 50 for Indeed. Keep it small for testing
+        "url": "https://www.indeed.com/jobs?as_and&as_phr={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04",
+        "list_length": 3, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 2, # seconds to sleep to prevent site from knowing you're a scraper
         "random_sleep_variation": 1, # add on to sleep to look more human
         "job_title": "nursing aide",
@@ -70,7 +71,9 @@ print("\nScraping\n")
 list_job_dict = []
 
 for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
-    url = config_job_site_dict["url"].format(config_job_site_dict["list_length"])
+    url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
+        urllib.parse.quote(config_job_site_dict["job_title"], safe=""),
+        config_job_site_dict["list_length"])
     print(f"getting {url}")
     print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime.now().strftime("%A %B %d %H:%M:%S")}')
     list_job_ids = get_jobs_IDs(url)
