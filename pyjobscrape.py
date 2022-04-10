@@ -1,3 +1,4 @@
+import sys, getopt
 from urllib.request import Request, urlopen
 import urllib.parse
 from bs4 import BeautifulSoup as soup
@@ -12,14 +13,14 @@ import time
 list_dict_config_job_sites = [
     {
         "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any$l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04",
-        "page_length": 25, # Can be up to 50 for Indeed. Keep it small for testing
+        "url": "https://www.indeed.com/jobs?as_and&as_phr={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04&filter=0",
+        "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 4, # seconds to sleep between SERP clicks
         "random_sleep_variation": 2, # add some variety to the sleep
         "job_title": "nursing aide",
         "job_location": "san diego",
         "job_page": "https://www.indeed.com/viewjob?jk=",
-        "max_results": 50, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
+        "max_results": 250, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
         "randomize_per_page_clicks": True # Only select a percentage of page results if True
     }
 ]
@@ -31,7 +32,7 @@ def get_jobs_IDs(url):
     pagesoup = soup(webpage, "html.parser")
     # Looking for data-jk inside a section id="vjs-container"
     a_list = pagesoup.find_all("a", attrs={"data-jk": True})
-    print(f"Num jobs: {len(a_list)}" )
+    # print(f"Num jobs: {len(a_list)}" )
     for a in a_list:
         if a.has_attr('data-jk'):
             a_data_jk = a['data-jk']
@@ -43,7 +44,7 @@ def get_jobs_IDs(url):
 def get_job(job_page, job_id):
     job_url = f'{job_page}{job_id}'
     job_dict = {"id": job_id, "url": job_url}
-    print(f'job_url: {job_url}')
+    print(f'\tGetting {job_url}')
     req = Request(job_url, headers={'User-Agent': 'Mozilla/5.0'})
     webpage = urlopen(req).read()
     pagesoup = soup(webpage, "html.parser")
@@ -94,9 +95,7 @@ def get_job(job_page, job_id):
             num_multiple_candidates = next(multiple_candidates_sib.children, None).nextSibling
             if num_multiple_candidates is not None:
                 num_text_raw = num_multiple_candidates.text.strip()
-                print(f"num_text_raw: {num_text_raw}")
                 num_text = ''.join(filter(str.isdigit, num_text_raw))
-                print(f"num_text: {num_text}")
                 if num_text.isdigit():
                     job_dict["num_candidates"] = int(num_text)
                 else:
@@ -104,8 +103,6 @@ def get_job(job_page, job_id):
                         job_dict["num_candidates"] = True   # This means "lots"
                     else:
                         job_dict["num_candidates"] = 1
-                    print( f"Num candidates text: {num_text_raw}")
-                print(f'Num stored: {job_dict["num_candidates"]}')
 
     else:
         job_dict["num_candidates"] = 1
@@ -132,42 +129,90 @@ def get_job(job_page, job_id):
 
     return job_dict
 
-ssl._create_default_https_context = ssl._create_unverified_context
-print("\nScraping\n")
-
-list_jobs_dict = []
-
-for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
+# get all the search results for a given job site
+#       config_job_site_dict, job_title, job_location - configured or overrides from command line
+#       list_jobs_dict - returned
+#
+def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
+    list_jobs_dict = [] # List of dictionaries of job search results, returned f
     pages = config_job_site_dict["max_results"] // config_job_site_dict["page_length"]
+    more_pages = True
+    page = 1
 
-    for page in list(range(pages)):
-        print(f"Pulling page {page+1} of {pages} pages...")
+    while more_pages:
+        list_job_ids = []
+        serp_start_at = (page-1) * config_job_site_dict["page_length"]+1
+        if serp_start_at > config_job_site_dict["max_results"]:
+            more_pages = False
+            continue
 
         url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
-            urllib.parse.quote(config_job_site_dict["job_title"], safe=""), # add Job title to url
-            urllib.parse.quote(config_job_site_dict["job_location"], safe=""),  # add location to url
-            page-1*config_job_site_dict["page_length"],                     # Where to start in SERP
+            urllib.parse.quote(job_title, safe=""), # add Job title to url
+            urllib.parse.quote(job_location, safe=""),  # add location to url
+            serp_start_at,                              # Where to start in SERP
             config_job_site_dict["page_length"])                            # Add max results per page
-        print(f"Getting {url}")
         datetime_string = datetime.now().strftime("%A %B %d %H:%M:%S")
-        print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime_string}')
+        print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime_string} via {url}')
+
         list_job_ids = get_jobs_IDs(url)
+
         if config_job_site_dict["randomize_per_page_clicks"] is True:
-            page_max_clicks = round(random.random() * config_job_site_dict["page_length"])
+            page_max_result_clicks_randomizer = round(random.randint( config_job_site_dict["page_length"] // 2, config_job_site_dict["page_length"]))
         else:
-            page_max_clicks = config_job_site_dict["page_length"]
+            page_max_result_clicks_randomizer = config_job_site_dict["page_length"]
+        len_returned_list = len(list_job_ids)
+        print(f'Tried to get {config_job_site_dict["page_length"]} job results from page {page} and retrieved {len_returned_list} jobs')
 
-        print(f"Getting {page_max_clicks} jobs from page {page+1}")
+        if len_returned_list < page_max_result_clicks_randomizer:
+            more_pages = False
+            print(f'Last page of search results.')
 
-        for job in list(range(page_max_clicks)):
-            job_id = list_job_ids[job]
+        if len_returned_list > page_max_result_clicks_randomizer:
+            print(f"Randomly trimming list of search results to open down to {page_max_result_clicks_randomizer}")
+            del list_job_ids[page_max_result_clicks_randomizer:]
+
+        for job_id in list_job_ids:
             job_dict = get_job(config_job_site_dict["job_page"], job_id)
             sleep_per_iteration_rand = config_job_site_dict["sleep_time_between_requests"] + round(random.random()*config_job_site_dict["random_sleep_variation"], 1)
             # print(f"Sleeping for {sleep_per_iteration_rand}...")
             time.sleep(sleep_per_iteration_rand)
             list_jobs_dict.append(job_dict)
 
-    pd_jobs = pd.DataFrame(list_jobs_dict)
-    csv_path = f'./{datetime_string}_{config_job_site_dict["job_location"]}_{config_job_site_dict["job_title"]}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
-    print(f'Saving to {csv_path}')
-    pd_jobs.to_csv(csv_path)
+        list_job_ids.clear()    # We are reusing this in a loop, so make sure to clean it between iterations
+        page = page + 1
+
+def main(argv):
+    # Parse command line and override config
+    job_location = None
+    job_title = None
+    opts, args = getopt.getopt(argv,"l,j",["location=", "job="])
+    for opt, arg in opts:
+        if opt in ("-l", "--location"):
+            job_location = arg
+            print(f"Location: {job_location}")
+        elif opt in ("j", "--job"):
+            job_title = arg
+
+    ssl._create_default_https_context = ssl._create_unverified_context
+    print("\nScraping\n")
+
+    list_jobs_dict = []
+
+    # For each configured job site, get as many pages of results as is configured
+    for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
+        # Optionally override config with command line parms
+        if job_location is None:
+            job_location = config_job_site_dict["job_location"]
+        if job_title is None:
+            job_title = config_job_site_dict["job_title"]
+
+        list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location)
+
+        pd_jobs = pd.DataFrame(list_jobs_dict)
+        datetime_string = datetime.now().strftime("%A %B %d %H:%M:%S")
+        csv_path = f'./{datetime_string}_{job_location}_{job_title}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
+        pd_jobs.to_csv(csv_path)
+        print(f'Done. Saved results to {csv_path}')
+
+if __name__ == "__main__":
+    main(sys.argv[1:])
