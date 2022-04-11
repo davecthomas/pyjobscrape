@@ -128,8 +128,8 @@ def get_job(job_page, job_id):
     pay_text_raw = None
     job_dict["pay_min_posted"] = None
     job_dict["pay_max_posted"] = None
-    job_dict["pay_min_normalized"] = None
-    job_dict["pay_max_normalized"] = None
+    job_dict["pay_min_hourly"] = None
+    job_dict["pay_max_hourly"] = None
     job_dict["pay_unit_time"] = "hour"
     pay_conversion_to_hours = 1
 
@@ -142,22 +142,22 @@ def get_job(job_page, job_id):
     # TO DO - convert pay to hourly in these next 2 cases?
         elif pay_text_raw.find("day")  != -1:
             job_dict["pay_unit_time"] = "day"
-            pay_conversion_to_hours = 8
+            pay_conversion_to_hours = 8.0
 
         elif pay_text_raw.find("week")  != -1:
             job_dict["pay_unit_time"] = "week"
-            pay_conversion_to_hours = 8
+            pay_conversion_to_hours = 40.0
 
         pay_text_raw_strip_currency = pay_text_raw.replace('$','')
         pay_text_raw_words = pay_text_raw_strip_currency.split(" ")
         pay_range_list = [i for i in pay_text_raw_words if (is_number(i))]
 
         if len(pay_range_list) > 0:
-            job_dict["pay_min_posted"] = pay_range_list[0]
-            job_dict["pay_min_hourly"] = pay_range_list[0] * pay_conversion_to_hours
+            job_dict["pay_min_posted"] = float(pay_range_list[0])
+            job_dict["pay_min_hourly"] = float(pay_range_list[0]) / pay_conversion_to_hours
             if len(pay_range_list) > 1:
-                job_dict["pay_max_posted"] = pay_range_list[1]
-                job_dict["pay_max_hourly"] = pay_range_list[1] * pay_conversion_to_hours
+                job_dict["pay_max_posted"] = float(pay_range_list[1])
+                job_dict["pay_max_hourly"] = float(pay_range_list[1]) / pay_conversion_to_hours
 
     # print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
 
