@@ -13,12 +13,13 @@ import time
 list_dict_config_job_sites = [
     {
         "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04&filter=0",
+        "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&filter=0",
         "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 4, # seconds to sleep between SERP clicks
         "random_sleep_variation": 2, # add some variety to the sleep
-        "job_title": "nursing aide",
-        "job_location": "san diego",
+        "job_titles": ["caregiver"],
+        "job_locations": ["san diego", "los angeles", "san francisco",
+        "bakersfield", "orange county, ca", "oakland, ca", "san jose, ca", "sacramanto, ca", "riverside county, ca"],
         "job_page": "https://www.indeed.com/viewjob?jk=",
         "max_results": 250, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
         "randomize_per_page_clicks": True # Only select a percentage of page results if True
@@ -52,7 +53,7 @@ def get_job(job_page, job_id):
     job_url = f'{job_page}{job_id}'
     job_dict = {"id": job_id, "url": job_url}
     print(f'\tGetting {job_url}')
-    req = Request(job_url, headers={'User-Agent': 'Mozilla/5.0'})
+    req = Request(job_url, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36'})
     webpage = urlopen(req).read()
     pagesoup = soup(webpage, "html.parser")
 
@@ -160,7 +161,6 @@ def get_job(job_page, job_id):
                 job_dict["pay_max_hourly"] = float(pay_range_list[1]) / pay_conversion_to_hours
 
     # print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
-
     description_div = pagesoup.find(id="jobDescriptionText")
     if description_div is not None:
         job_dict["description"] = description_div.text.strip()
@@ -191,7 +191,7 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
             serp_start_at,                              # Where to start in SERP
             config_job_site_dict["page_length"])                            # Add max results per page
         datetime_string = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime_string} via {url}')
+        print(f'Looking for {job_title} at {config_job_site_dict["job_site"]} on {datetime_string} via {url}')
 
         list_job_ids = get_jobs_IDs(url)
 
@@ -241,21 +241,30 @@ def main(argv):
 
     # For each configured job site, get as many pages of results as is configured
     for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
-        # Optionally override config with command line parms
-        if job_location is None:
-            job_location = config_job_site_dict["job_location"]
-        if job_title is None:
-            job_title = config_job_site_dict["job_title"]
+        # take overridden location and title from command line
+        if job_title is not None and job_location is not None:
+            list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location)
+        else:
+            # Optionally override config with command line parms
+            if job_location is None:
+                job_location_list = config_job_site_dict["job_locations"]
+            if job_title is None:
+                job_title_list = config_job_site_dict["job_titles"]
 
-        list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location)
+            for job_title in job_title_list:
+                for job_location in job_location_list:
+                    list_jobs_dict.append(get_jobsite_SERPs(config_job_site_dict, job_title, job_location))
 
-        pd_jobs = pd.DataFrame(list_jobs_dict)
-        # stats = pd_jobs.describe(include='all')
-        # print (stats)
-        datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-        csv_path = f'./{datetime_string}_{job_location}_{job_title}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
-        pd_jobs.to_csv(csv_path)
-        print(f'Done. Saved results to {csv_path}')
+        if len(list_jobs_dict) > 0:
+            pd_jobs = pd.DataFrame(list_jobs_dict)
+            # stats = pd_jobs.describe(include='all')
+            # print (stats)
+            datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+            csv_path = f'./{datetime_string}_{job_location}_{job_title}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
+            pd_jobs.to_csv(csv_path)
+            print(f'Done. Saved results to {csv_path}')
+        else:
+            print(f'No results.')
 
 if __name__ == "__main__":
     main(sys.argv[1:])
