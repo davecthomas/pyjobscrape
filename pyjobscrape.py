@@ -41,6 +41,13 @@ def get_jobs_IDs(url):
 
     return list_job_ids
 
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
 def get_job(job_page, job_id):
     job_url = f'{job_page}{job_id}'
     job_dict = {"id": job_id, "url": job_url}
@@ -88,6 +95,7 @@ def get_job(job_page, job_id):
         job_dict["job_type_temporary"] = False
 
     # jobsearch-HiringInsights-icon--multiplecandidates
+    job_dict["num_candidates"] = 1
     multiple_candidates_span = pagesoup.find('span', attrs={"class": "jobsearch-HiringInsights-icon--multiplecandidates"})
     if multiple_candidates_span is not None:
         multiple_candidates_sib = multiple_candidates_span.nextSibling
@@ -101,9 +109,6 @@ def get_job(job_page, job_id):
                 else:
                     if num_text_raw.find("On-going") != -1:
                         job_dict["num_candidates"] = True   # This means "lots"
-                    else:
-                        job_dict["num_candidates"] = 1
-
     else:
         job_dict["num_candidates"] = 1
 
@@ -117,10 +122,23 @@ def get_job(job_page, job_id):
             job_dict["company_rating_num_employee_votes"] = list_rating_info[2]
 
     pay = pagesoup.find('div', text="Salary")
+    pay_text_raw = None
+    job_dict["pay_min"] = None
+    job_dict["pay_max"] = None
+
     if pay is not None:
-        job_dict["pay"] = pay.nextSibling.text.strip()
-    else:
-        job_dict["pay"] = None
+        pay_text_raw = pay.nextSibling.text.strip()
+
+        pay_text_raw = pay_text_raw.replace('$','')
+        pay_text_raw_words = pay_text_raw.split(" ")
+        pay_list = [i for i in pay_text_raw_words if (is_number(i))]
+        pay_text_raw_words[0].strip()
+        if len(pay_list) > 0:
+            job_dict["pay_min"] = pay_list[0]
+            if len(pay_list) > 1:
+                job_dict["pay_max"] = pay_list[1]
+
+    print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
 
     description_div = pagesoup.find(id="jobDescriptionText")
     if description_div is not None:
@@ -151,7 +169,7 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
             urllib.parse.quote(job_location, safe=""),  # add location to url
             serp_start_at,                              # Where to start in SERP
             config_job_site_dict["page_length"])                            # Add max results per page
-        datetime_string = datetime.now().strftime("%A %B %d %H:%M:%S")
+        datetime_string = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f'Looking for {config_job_site_dict["job_title"]} at {config_job_site_dict["job_site"]} on {datetime_string} via {url}')
 
         list_job_ids = get_jobs_IDs(url)
@@ -181,6 +199,8 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
         list_job_ids.clear()    # We are reusing this in a loop, so make sure to clean it between iterations
         page = page + 1
 
+    return list_jobs_dict
+
 def main(argv):
     # Parse command line and override config
     job_location = None
@@ -209,7 +229,7 @@ def main(argv):
         list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location)
 
         pd_jobs = pd.DataFrame(list_jobs_dict)
-        datetime_string = datetime.now().strftime("%A %B %d %H:%M:%S")
+        datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         csv_path = f'./{datetime_string}_{job_location}_{job_title}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
         pd_jobs.to_csv(csv_path)
         print(f'Done. Saved results to {csv_path}')
