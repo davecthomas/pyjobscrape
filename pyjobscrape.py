@@ -125,9 +125,19 @@ def get_job(job_page, job_id):
     pay_text_raw = None
     job_dict["pay_min"] = None
     job_dict["pay_max"] = None
+    job_dict["pay_unit_time"] = "hour"
 
     if pay is not None:
         pay_text_raw = pay.nextSibling.text.strip()
+        pay_per_unit_time_idx = pay_text_raw.find("hour")
+        if pay_per_unit_time_idx != -1:
+            job_dict["pay_unit_time"] = "hour"
+
+        elif pay_text_raw.find("day")  != -1:
+            job_dict["pay_unit_time"] = "day"
+
+        elif pay_text_raw.find("week")  != -1:
+            job_dict["pay_unit_time"] = "week"
 
         pay_text_raw = pay_text_raw.replace('$','')
         pay_text_raw_words = pay_text_raw.split(" ")
@@ -229,6 +239,8 @@ def main(argv):
         list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location)
 
         pd_jobs = pd.DataFrame(list_jobs_dict)
+        # stats = pd_jobs.describe(include='all')
+        # print (stats)
         datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         csv_path = f'./{datetime_string}_{job_location}_{job_title}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
         pd_jobs.to_csv(csv_path)
