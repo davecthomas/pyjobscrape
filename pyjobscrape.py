@@ -13,7 +13,7 @@ import time
 list_dict_config_job_sites = [
     {
         "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04&filter=0",
+        "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&vjk=19ff24d735a88a04&filter=0",
         "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 4, # seconds to sleep between SERP clicks
         "random_sleep_variation": 2, # add some variety to the sleep
@@ -138,7 +138,7 @@ def get_job(job_page, job_id):
             if len(pay_list) > 1:
                 job_dict["pay_max"] = pay_list[1]
 
-    print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
+    # print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
 
     description_div = pagesoup.find(id="jobDescriptionText")
     if description_div is not None:
