@@ -121,11 +121,17 @@ def get_job(job_page, job_id):
             job_dict["company_rating_max_potential"] = list_rating_info[1]
             job_dict["company_rating_num_employee_votes"] = list_rating_info[2]
 
+    # For pay, since it is posted in a number of different hourly, daily, weekly amounts,
+    # we normalize it to hourly but also save the originally posted rate and unit of time
+    # since that may indicate the frequency of pay, which may be useful later
     pay = pagesoup.find('div', text="Salary")
     pay_text_raw = None
-    job_dict["pay_min"] = None
-    job_dict["pay_max"] = None
+    job_dict["pay_min_posted"] = None
+    job_dict["pay_max_posted"] = None
+    job_dict["pay_min_normalized"] = None
+    job_dict["pay_max_normalized"] = None
     job_dict["pay_unit_time"] = "hour"
+    pay_conversion_to_hours = 1
 
     if pay is not None:
         pay_text_raw = pay.nextSibling.text.strip()
@@ -133,20 +139,25 @@ def get_job(job_page, job_id):
         if pay_per_unit_time_idx != -1:
             job_dict["pay_unit_time"] = "hour"
 
+    # TO DO - convert pay to hourly in these next 2 cases?
         elif pay_text_raw.find("day")  != -1:
             job_dict["pay_unit_time"] = "day"
+            pay_conversion_to_hours = 8
 
         elif pay_text_raw.find("week")  != -1:
             job_dict["pay_unit_time"] = "week"
+            pay_conversion_to_hours = 8
 
-        pay_text_raw = pay_text_raw.replace('$','')
-        pay_text_raw_words = pay_text_raw.split(" ")
-        pay_list = [i for i in pay_text_raw_words if (is_number(i))]
-        pay_text_raw_words[0].strip()
-        if len(pay_list) > 0:
-            job_dict["pay_min"] = pay_list[0]
-            if len(pay_list) > 1:
-                job_dict["pay_max"] = pay_list[1]
+        pay_text_raw_strip_currency = pay_text_raw.replace('$','')
+        pay_text_raw_words = pay_text_raw_strip_currency.split(" ")
+        pay_range_list = [i for i in pay_text_raw_words if (is_number(i))]
+
+        if len(pay_range_list) > 0:
+            job_dict["pay_min_posted"] = pay_range_list[0]
+            job_dict["pay_min_hourly"] = pay_range_list[0] * pay_conversion_to_hours
+            if len(pay_range_list) > 1:
+                job_dict["pay_max_posted"] = pay_range_list[1]
+                job_dict["pay_max_hourly"] = pay_range_list[1] * pay_conversion_to_hours
 
     # print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
 
