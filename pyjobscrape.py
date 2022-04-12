@@ -9,36 +9,105 @@ import webbrowser
 import random
 import ssl
 import time
+import requests     # TOR service required locally on port 9050
+from stem import Signal
+from stem.control import Controller
 
 list_dict_config_job_sites = [
     {
         "job_site": "Indeed.com",
         "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&filter=0",
         "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
-        "sleep_time_between_requests": 4, # seconds to sleep between SERP clicks
-        "random_sleep_variation": 2, # add some variety to the sleep
+        "sleep_time_between_requests": 5, # seconds to sleep between SERP clicks
+        "random_sleep_variation": 3, # add some variety to the sleep
+        # Override this with --job on command line
         "job_titles": ["caregiver"],
+        # Override this with --location on command line
         "job_locations": ["san diego", "los angeles", "san francisco",
         "bakersfield", "orange county, ca", "oakland, ca", "san jose, ca", "sacramanto, ca", "riverside county, ca"],
         "job_page": "https://www.indeed.com/viewjob?jk=",
-        "max_results": 250, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
+        "max_results": 50, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
         "randomize_per_page_clicks": True # Only select a percentage of page results if True
     }
 ]
 
+proxies = {
+    'http': 'socks5://127.0.0.1:9050',
+    'https': 'socks5://127.0.0.1:9050'
+}
+
+
+headers_list = [
+    # Firefox 77 Mac
+    {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:77.0) Gecko/20100101 Firefox/77.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Referer": "https://www.google.com/",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    },
+    # Firefox 77 Windows
+    {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": "https://www.google.com/",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1"
+    },
+    # Chrome 83 Mac
+    {
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Dest": "document",
+        "Referer": "https://www.google.com/",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8"
+    },
+    # Chrome 83 Windows
+    {
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.97 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-User": "?1",
+        "Sec-Fetch-Dest": "document",
+        "Referer": "https://www.google.com/",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+]
+
+def get_random_user_agent():
+    return random.choice(headers_list)
+
 def get_jobs_IDs(url):
     list_job_ids = []
-    req = Request(url,headers={'User-Agent': 'Mozilla/5.0'})
-    webpage = urlopen(req).read()
-    pagesoup = soup(webpage, "html.parser")
-    # Looking for data-jk inside a section id="vjs-container"
-    a_list = pagesoup.find_all("a", attrs={"data-jk": True})
-    # print(f"Num jobs: {len(a_list)}" )
-    for a in a_list:
-        if a.has_attr('data-jk'):
-            a_data_jk = a['data-jk']
-            # print(f"a job key {a_data_jk}")
-            list_job_ids.append(a_data_jk)
+    headers = get_random_user_agent()
+    # req = Request(url,headers=headers)
+    response = requests.get(url, proxies=proxies, headers=headers)
+
+    if response.status_code == 200:
+        pagesoup = soup(response.text, features="html.parser", from_encoding='utf8')
+        # Looking for data-jk inside a section id="vjs-container"
+        a_list = pagesoup.find_all("a", attrs={"data-jk": True})
+        # print(f"Num jobs: {len(a_list)}" )
+        for a in a_list:
+            if a.has_attr('data-jk'):
+                a_data_jk = a['data-jk']
+                # print(f"a job key {a_data_jk}")
+                list_job_ids.append(a_data_jk)
 
     return list_job_ids
 
@@ -53,118 +122,122 @@ def get_job(job_page, job_id):
     job_url = f'{job_page}{job_id}'
     job_dict = {"id": job_id, "url": job_url}
     print(f'\tGetting {job_url}')
-    req = Request(job_url, headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 12_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36'})
-    webpage = urlopen(req).read()
-    pagesoup = soup(webpage, "html.parser")
+    headers = get_random_user_agent()
+    # req = Request(job_url,headers=headers)
+    response = requests.get(job_url, proxies=proxies, headers=headers)
 
-    title = pagesoup.find('h1')
-    if title is not None:
-        job_dict["job_title"] = title.text.strip()
-    else:
-        title = pagesoup.find('span', attrs={"class": "indeed-apply-widget",
-            "data-indeed-apply-jobtitle":True})
+    if response.status_code == 200:
+        # webpage = urlopen(req).read()
+        pagesoup = soup(response.text, from_encoding='utf8')
+
+        title = pagesoup.find('h1')
         if title is not None:
-            job_dict["job_title"] = title["data-indeed-apply-jobtitle"]
+            job_dict["job_title"] = title.text.strip()
         else:
-            job_dict["job_title"] = None        # This is probably an error in our parsing
+            title = pagesoup.find('span', attrs={"class": "indeed-apply-widget",
+                "data-indeed-apply-jobtitle":True})
+            if title is not None:
+                job_dict["job_title"] = title["data-indeed-apply-jobtitle"]
+            else:
+                job_dict["job_title"] = None        # This is probably an error in our parsing
 
-    job_location = pagesoup.find('span', attrs={"class": "indeed-apply-widget",
-        "data-indeed-apply-joblocation":True})
-    if job_location is not None:
-        job_dict["job_location"] = job_location["data-indeed-apply-joblocation"]
-    else:
-        job_dict["job_location"] = None
+        job_location = pagesoup.find('span', attrs={"class": "indeed-apply-widget",
+            "data-indeed-apply-joblocation":True})
+        if job_location is not None:
+            job_dict["job_location"] = job_location["data-indeed-apply-joblocation"]
+        else:
+            job_dict["job_location"] = None
 
-    company_tag = pagesoup.find('meta', attrs={"property": "og:description", "content":True})
-    if company_tag is not None:
-        job_dict["company"] = company_tag['content']
+        company_tag = pagesoup.find('meta', attrs={"property": "og:description", "content":True})
+        if company_tag is not None:
+            job_dict["company"] = company_tag['content']
 
-    job_type_element = pagesoup.find("div", string="Full-time")
-    if job_type_element is not None:
-        job_dict["job_type_full_time"] = True
-    else:
-        job_dict["job_type_full_time"] = False
-    job_type_element = pagesoup.find("div", string="Part-time")
-    if job_type_element is not None:
-        job_dict["job_type_part_time"] = True
-    else:
-        job_dict["job_type_part_time"] = False
-    job_type_element = pagesoup.find("div", string="Temporary")
-    if job_type_element is not None:
-        job_dict["job_type_temporary"] = True
-    else:
-        job_dict["job_type_temporary"] = False
+        job_type_element = pagesoup.find("div", string="Full-time")
+        if job_type_element is not None:
+            job_dict["job_type_full_time"] = True
+        else:
+            job_dict["job_type_full_time"] = False
+        job_type_element = pagesoup.find("div", string="Part-time")
+        if job_type_element is not None:
+            job_dict["job_type_part_time"] = True
+        else:
+            job_dict["job_type_part_time"] = False
+        job_type_element = pagesoup.find("div", string="Temporary")
+        if job_type_element is not None:
+            job_dict["job_type_temporary"] = True
+        else:
+            job_dict["job_type_temporary"] = False
 
-    # jobsearch-HiringInsights-icon--multiplecandidates
-    job_dict["num_candidates"] = 1
-    multiple_candidates_span = pagesoup.find('span', attrs={"class": "jobsearch-HiringInsights-icon--multiplecandidates"})
-    if multiple_candidates_span is not None:
-        multiple_candidates_sib = multiple_candidates_span.nextSibling
-        if multiple_candidates_sib is not None:
-            num_multiple_candidates = next(multiple_candidates_sib.children, None).nextSibling
-            if num_multiple_candidates is not None:
-                num_text_raw = num_multiple_candidates.text.strip()
-                num_text = ''.join(filter(str.isdigit, num_text_raw))
-                if num_text.isdigit():
-                    job_dict["num_candidates"] = int(num_text)
-                else:
-                    if num_text_raw.find("On-going") != -1:
-                        job_dict["num_candidates"] = True   # This means "lots"
-    else:
+        # jobsearch-HiringInsights-icon--multiplecandidates
         job_dict["num_candidates"] = 1
+        multiple_candidates_span = pagesoup.find('span', attrs={"class": "jobsearch-HiringInsights-icon--multiplecandidates"})
+        if multiple_candidates_span is not None:
+            multiple_candidates_sib = multiple_candidates_span.nextSibling
+            if multiple_candidates_sib is not None:
+                num_multiple_candidates = next(multiple_candidates_sib.children, None).nextSibling
+                if num_multiple_candidates is not None:
+                    num_text_raw = num_multiple_candidates.text.strip()
+                    num_text = ''.join(filter(str.isdigit, num_text_raw))
+                    if num_text.isdigit():
+                        job_dict["num_candidates"] = int(num_text)
+                    else:
+                        if num_text_raw.find("On-going") != -1:
+                            job_dict["num_candidates"] = True   # This means "lots"
+        else:
+            job_dict["num_candidates"] = 1
 
-    company_rating_element = pagesoup.find('div', attrs={"class": "icl-Ratings-starsCountWrapper"})
-    if company_rating_element is not None and company_rating_element.has_attr("aria-label"):
-        company_rating_fulltext = company_rating_element["aria-label"]
-        list_rating_info = re.findall(r"[-+]?(?:\d*\.\d+|\d+)",company_rating_fulltext)
-        if len(list_rating_info) == 3:
-            job_dict["company_rating"] = list_rating_info[0]
-            job_dict["company_rating_max_potential"] = list_rating_info[1]
-            job_dict["company_rating_num_employee_votes"] = list_rating_info[2]
+        company_rating_element = pagesoup.find('div', attrs={"class": "icl-Ratings-starsCountWrapper"})
+        if company_rating_element is not None and company_rating_element.has_attr("aria-label"):
+            company_rating_fulltext = company_rating_element["aria-label"]
+            list_rating_info = re.findall(r"[-+]?(?:\d*\.\d+|\d+)",company_rating_fulltext)
+            if len(list_rating_info) == 3:
+                job_dict["company_rating"] = list_rating_info[0]
+                job_dict["company_rating_max_potential"] = list_rating_info[1]
+                job_dict["company_rating_num_employee_votes"] = list_rating_info[2]
 
-    # For pay, since it is posted in a number of different hourly, daily, weekly amounts,
-    # we normalize it to hourly but also save the originally posted rate and unit of time
-    # since that may indicate the frequency of pay, which may be useful later
-    pay = pagesoup.find('div', text="Salary")
-    pay_text_raw = None
-    job_dict["pay_min_posted"] = None
-    job_dict["pay_max_posted"] = None
-    job_dict["pay_min_hourly"] = None
-    job_dict["pay_max_hourly"] = None
-    job_dict["pay_unit_time"] = "hour"
-    pay_conversion_to_hours = 1
+        # For pay, since it is posted in a number of different hourly, daily, weekly amounts,
+        # we normalize it to hourly but also save the originally posted rate and unit of time
+        # since that may indicate the frequency of pay, which may be useful later
+        pay = pagesoup.find('div', text="Salary")
+        pay_text_raw = None
+        job_dict["pay_min_posted"] = None
+        job_dict["pay_max_posted"] = None
+        job_dict["pay_min_hourly"] = None
+        job_dict["pay_max_hourly"] = None
+        job_dict["pay_unit_time"] = "hour"
+        pay_conversion_to_hours = 1
 
-    if pay is not None:
-        pay_text_raw = pay.nextSibling.text.strip()
-        pay_per_unit_time_idx = pay_text_raw.find("hour")
-        if pay_per_unit_time_idx != -1:
-            job_dict["pay_unit_time"] = "hour"
+        if pay is not None:
+            pay_text_raw = pay.nextSibling.text.strip()
+            pay_per_unit_time_idx = pay_text_raw.find("hour")
+            if pay_per_unit_time_idx != -1:
+                job_dict["pay_unit_time"] = "hour"
 
-    # TO DO - convert pay to hourly in these next 2 cases?
-        elif pay_text_raw.find("day")  != -1:
-            job_dict["pay_unit_time"] = "day"
-            pay_conversion_to_hours = 8.0
+        # TO DO - convert pay to hourly in these next 2 cases?
+            elif pay_text_raw.find("day")  != -1:
+                job_dict["pay_unit_time"] = "day"
+                pay_conversion_to_hours = 8.0
 
-        elif pay_text_raw.find("week")  != -1:
-            job_dict["pay_unit_time"] = "week"
-            pay_conversion_to_hours = 40.0
+            elif pay_text_raw.find("week")  != -1:
+                job_dict["pay_unit_time"] = "week"
+                pay_conversion_to_hours = 40.0
 
-        pay_text_raw_strip_currency = pay_text_raw.replace('$','')
-        pay_text_raw_words = pay_text_raw_strip_currency.split(" ")
-        pay_range_list = [i for i in pay_text_raw_words if (is_number(i))]
+            pay_text_raw_strip_currency = pay_text_raw.replace('$','')
+            pay_text_raw_words = pay_text_raw_strip_currency.split(" ")
+            pay_range_list = [i for i in pay_text_raw_words if (is_number(i))]
 
-        if len(pay_range_list) > 0:
-            job_dict["pay_min_posted"] = float(pay_range_list[0])
-            job_dict["pay_min_hourly"] = float(pay_range_list[0]) / pay_conversion_to_hours
-            if len(pay_range_list) > 1:
-                job_dict["pay_max_posted"] = float(pay_range_list[1])
-                job_dict["pay_max_hourly"] = float(pay_range_list[1]) / pay_conversion_to_hours
+            if len(pay_range_list) > 0:
+                job_dict["pay_min_posted"] = float(pay_range_list[0])
+                job_dict["pay_min_hourly"] = float(pay_range_list[0]) / pay_conversion_to_hours
+                if len(pay_range_list) > 1:
+                    job_dict["pay_max_posted"] = float(pay_range_list[1])
+                    job_dict["pay_max_hourly"] = float(pay_range_list[1]) / pay_conversion_to_hours
 
-    # print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
-    description_div = pagesoup.find(id="jobDescriptionText")
-    if description_div is not None:
-        job_dict["description"] = description_div.text.strip()
-        # print(f'description: {job_dict["description"]}')
+        # print(f'Pay range: {job_dict["pay_min"]} - {job_dict["pay_max"]}')
+        description_div = pagesoup.find(id="jobDescriptionText")
+        if description_div is not None:
+            job_dict["description"] = description_div.text.strip()
+            # print(f'description: {job_dict["description"]}')
 
     return job_dict
 
@@ -193,7 +266,8 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
         datetime_string = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print(f'Looking for {job_title} at {config_job_site_dict["job_site"]} on {datetime_string} via {url}')
 
-        list_job_ids = get_jobs_IDs(url)
+        while len(list_job_ids) == 0:
+            list_job_ids = get_jobs_IDs(url)
 
         if config_job_site_dict["randomize_per_page_clicks"] is True:
             page_max_result_clicks_randomizer = round(random.randint( config_job_site_dict["page_length"] // 2, config_job_site_dict["page_length"]))
@@ -222,6 +296,7 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
 
     return list_jobs_dict
 
+
 def main(argv):
     # Parse command line and override config
     job_location = None
@@ -233,6 +308,10 @@ def main(argv):
             print(f"Location: {job_location}")
         elif opt in ("j", "--job"):
             job_title = arg
+
+    # Get my IP Address
+    my_ip = requests.get('https://ident.me', proxies=proxies).text
+    print( f'Requests will originate from IP {my_ip}')
 
     ssl._create_default_https_context = ssl._create_unverified_context
     print("\nScraping\n")
