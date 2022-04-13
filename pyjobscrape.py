@@ -16,7 +16,7 @@ from stem.control import Controller
 list_dict_config_job_sites = [
     {
         "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&filter=0",
+        "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any={}&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&filter=0",
         "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 5, # seconds to sleep between SERP clicks
         "random_sleep_variation": 3, # add some variety to the sleep
@@ -120,7 +120,11 @@ def is_number(s):
 
 def get_job(job_page, job_id):
     job_url = f'{job_page}{job_id}'
-    job_dict = {"id": job_id, "url": job_url}
+    job_dict = {"id": job_id, "url": job_url, "job_title": "", "job_location": "", "company": "",
+    "company_rating": None, 	"company_rating_max_potential": None, "company_rating_num_employee_votes": None,
+    "job_type_full_time": "",	"job_type_part_time": "",	"job_type_temporary": "",	"num_candidates": "",
+    "pay_min_posted	pay_max_posted": None,	"pay_min_hourly": None,	"pay_max_hourly": None,	"pay_unit_time": "hourly",
+    "description": ""}
     print(f'\tGetting {job_url}')
     headers = get_random_user_agent()
     # req = Request(job_url,headers=headers)
@@ -151,6 +155,11 @@ def get_job(job_page, job_id):
         company_tag = pagesoup.find('meta', attrs={"property": "og:description", "content":True})
         if company_tag is not None:
             job_dict["company"] = company_tag['content']
+        else:
+            company_tag = pagesoup.find('div', attrs={"class": "jobsearch-CompanyReview--heading", "content":True})
+            if company_tag is not None:
+                job_dict["company"] = company_tag['content']
+
 
         job_type_element = pagesoup.find("div", string="Full-time")
         if job_type_element is not None:
@@ -245,7 +254,7 @@ def get_job(job_page, job_id):
 #       config_job_site_dict, job_title, job_location - configured or overrides from command line
 #       list_jobs_dict - returned
 #
-def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
+def get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone):
     list_jobs_dict = [] # List of dictionaries of job search results, returned f
     pages = config_job_site_dict["max_results"] // config_job_site_dict["page_length"]
     more_pages = True
@@ -258,8 +267,10 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location):
             more_pages = False
             continue
 
+        print(f"search_term_atleastone{search_term_atleastone}")
         url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
             urllib.parse.quote(job_title, safe=""), # add Job title to url
+            urllib.parse.quote(search_term_atleastone, safe=""), # add find at least one to url
             urllib.parse.quote(job_location, safe=""),  # add location to url
             serp_start_at,                              # Where to start in SERP
             config_job_site_dict["page_length"])                            # Add max results per page
@@ -301,13 +312,19 @@ def main(argv):
     # Parse command line and override config
     job_location = None
     job_title = None
-    opts, args = getopt.getopt(argv,"l,j",["location=", "job="])
+    search_term_atleastone = None
+    opts, args = getopt.getopt(argv,"s,l,j",["atleastone=", "location=", "job="])
     for opt, arg in opts:
         if opt in ("-l", "--location"):
             job_location = arg
             print(f"Location: {job_location}")
-        elif opt in ("j", "--job"):
+        elif opt in ("-j", "--job"):
             job_title = arg
+        elif opt in ("-s", "--atleastone"):
+            search_term_atleastone = arg
+            print(f"Find at least one of: {search_term_atleastone}")
+
+
 
     # Get my IP Address
     my_ip = requests.get('https://ident.me', proxies=proxies).text
@@ -322,7 +339,7 @@ def main(argv):
     for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
         # take overridden location and title from command line
         if job_title is not None and job_location is not None:
-            list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location)
+            list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone)
         else:
             # Optionally override config with command line parms
             if job_location is None:
@@ -332,7 +349,7 @@ def main(argv):
 
             for job_title in job_title_list:
                 for job_location in job_location_list:
-                    list_jobs_dict.append(get_jobsite_SERPs(config_job_site_dict, job_title, job_location))
+                    list_jobs_dict.append(get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone))
 
         if len(list_jobs_dict) > 0:
             pd_jobs = pd.DataFrame(list_jobs_dict)
