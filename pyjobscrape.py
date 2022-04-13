@@ -123,7 +123,7 @@ def get_job(job_page, job_id):
     job_dict = {"id": job_id, "url": job_url, "job_title": "", "job_location": "", "company": "",
     "company_rating": None, 	"company_rating_max_potential": None, "company_rating_num_employee_votes": None,
     "job_type_full_time": "",	"job_type_part_time": "",	"job_type_temporary": "",	"num_candidates": "",
-    "pay_min_posted	pay_max_posted": None,	"pay_min_hourly": None,	"pay_max_hourly": None,	"pay_unit_time": "hourly",
+    "pay_min_posted": None,	"pay_max_posted": None,	"pay_min_hourly": None,	"pay_max_hourly": None,	"pay_unit_time": "hourly",
     "description": ""}
     print(f'\tGetting {job_url}')
     headers = get_random_user_agent()
@@ -356,7 +356,7 @@ def main(argv):
             # stats = pd_jobs.describe(include='all')
             # print (stats)
             datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            csv_path = f'./{datetime_string}_{job_location}_{job_title}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
+            csv_path = f'./{datetime_string}_{job_location}_{job_title}_{search_term_atleastone}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
             pd_jobs.to_csv(csv_path)
             print(f'Done. Saved results to {csv_path}')
         else:
