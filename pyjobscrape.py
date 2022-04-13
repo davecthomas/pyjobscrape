@@ -26,7 +26,7 @@ list_dict_config_job_sites = [
         "job_locations": ["san diego", "los angeles", "san francisco",
         "bakersfield", "orange county, ca", "oakland, ca", "san jose, ca", "sacramanto, ca", "riverside county, ca"],
         "job_page": "https://www.indeed.com/viewjob?jk=",
-        "max_results": 50, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
+        "max_results": 150, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
         "randomize_per_page_clicks": True # Only select a percentage of page results if True
     }
 ]
@@ -99,7 +99,7 @@ def get_jobs_IDs(url):
     response = requests.get(url, proxies=proxies, headers=headers)
 
     if response.status_code == 200:
-        pagesoup = soup(response.text, features="html.parser", from_encoding='utf8')
+        pagesoup = soup(response.text, features="html5lib", from_encoding='utf8')
         # Looking for data-jk inside a section id="vjs-container"
         a_list = pagesoup.find_all("a", attrs={"data-jk": True})
         # print(f"Num jobs: {len(a_list)}" )
@@ -128,7 +128,7 @@ def get_job(job_page, job_id):
 
     if response.status_code == 200:
         # webpage = urlopen(req).read()
-        pagesoup = soup(response.text, from_encoding='utf8')
+        pagesoup = soup(response.text, features="html5lib", from_encoding='utf8')
 
         title = pagesoup.find('h1')
         if title is not None:
