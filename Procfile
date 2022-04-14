@@ -1,1 +1,1 @@
-worker: python pyjobecrape.py 
+worker: python pyjobscrape.py 
