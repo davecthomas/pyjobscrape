@@ -276,7 +276,6 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term
             more_pages = False
             continue
 
-        print(f"search_term_atleastone{search_term_atleastone}")
         url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
             urllib.parse.quote(job_title, safe=""), # add Job title to url
             urllib.parse.quote(search_term_atleastone, safe=""), # add find at least one to url
@@ -357,6 +356,8 @@ def main(argv):
                 job_location_list = config_job_site_dict["job_locations"]
             if job_title is None:
                 job_title_list = config_job_site_dict["job_titles"]
+            if search_term_atleastone is None:
+                search_term_atleastone = ""
 
             for job_title in job_title_list:
                 for job_location in job_location_list:
