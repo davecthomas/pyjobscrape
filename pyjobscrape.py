@@ -12,6 +12,7 @@ import time
 import requests     # TOR service required locally on port 9050
 from stem import Signal
 from stem.control import Controller
+import os
 
 list_dict_config_job_sites = [
     {
@@ -31,7 +32,7 @@ list_dict_config_job_sites = [
     }
 ]
 
-proxies = {
+use_proxy_list = {
     'http': 'socks5://127.0.0.1:9050',
     'https': 'socks5://127.0.0.1:9050'
 }
@@ -94,8 +95,12 @@ def get_random_user_agent():
 
 def get_jobs_IDs(url):
     list_job_ids = []
-    headers = get_random_user_agent()
-    # req = Request(url,headers=headers)
+    headers = {}
+    proxies = {}
+    if use_proxy:
+        headers = get_random_user_agent()
+        proxies = use_proxy_list
+
     response = requests.get(url, proxies=proxies, headers=headers)
 
     if response.status_code == 200:
@@ -126,8 +131,12 @@ def get_job(job_page, job_id):
     "pay_min_posted": None,	"pay_max_posted": None,	"pay_min_hourly": None,	"pay_max_hourly": None,	"pay_unit_time": "hourly",
     "description": ""}
     print(f'\tGetting {job_url}')
-    headers = get_random_user_agent()
-    # req = Request(job_url,headers=headers)
+    headers = {}
+    proxies = {}
+    if use_proxy:
+        headers = get_random_user_agent()
+        proxies = use_proxy_list
+
     response = requests.get(job_url, proxies=proxies, headers=headers)
 
     if response.status_code == 200:
@@ -309,6 +318,7 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term
 
 
 def main(argv):
+
     # Parse command line and override config
     job_location = None
     job_title = None
@@ -325,10 +335,11 @@ def main(argv):
             print(f"Find at least one of: {search_term_atleastone}")
 
 
-
-    # Get my IP Address
-    my_ip = requests.get('https://ident.me', proxies=proxies).text
-    print( f'Requests will originate from IP {my_ip}')
+    if use_proxy:
+        # Get my IP Address
+        proxies = use_proxy_list
+        my_ip = requests.get('https://ident.me', proxies=proxies).text
+        print( f'Requests will originate from IP {my_ip}')
 
     ssl._create_default_https_context = ssl._create_unverified_context
     print("\nScraping\n")
@@ -363,4 +374,12 @@ def main(argv):
             print(f'No results.')
 
 if __name__ == "__main__":
+    no_proxy = False
+    use_proxy = True
+    # See if we want to use a proxy (this is set to 0 in Heroku)
+    if "NO_PROXY" in os.environ:
+        no_proxy = bool(os.environ.get("NO_PROXY"))
+
+    if no_proxy != False:
+        use_proxy = False # Doing this to make code more readable
     main(sys.argv[1:])
