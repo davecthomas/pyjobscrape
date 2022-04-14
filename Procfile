@@ -1,2 +1,1 @@
-web: python pyjobscrape.py
-worker: python pyjobescrape.py 
+worker: python pyjobecrape.py 
