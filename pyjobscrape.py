@@ -12,6 +12,7 @@ import time
 import requests     # TOR service required locally on port 9050
 from stem import Signal
 from stem.control import Controller
+
 import os
 
 list_dict_config_job_sites = [

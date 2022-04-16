@@ -1,14 +1,47 @@
-# pyjobscrape scrapes jobs from job sites
+# pyjobscrape 
+scrapes jobs from job sites
 ## Environment
 `brew install python`
-Read https://sylvaindurand.org/use-tor-with-python/
+
 `brew install tor`
+
 `brew services restart tor`
-`python3.10 -m venv venv`
-`source venv/bin/activate`
-`pip install -r requirements.txt`
+
+
+## Prep DB
+```
+brew install postgres
+brew services start postgres
+/usr/local/opt/postgres/bin/createuser -s postgres
+psql pyjobscrape -U postges -h localhost
+CREATE ROLE pyjobscrape;
+ALTER ROLE pyjobscrape WITH LOGIN PASSWORD '<your password>' NOSUPERUSER NOCREATEDB NOCREATEROLE;
+CREATE DATABASE pyjobscrape OWNER pyjobscrape;
+REVOKE ALL ON DATABASE pyjobscrape FROM PUBLIC;
+GRANT CONNECT ON DATABASE pyjobscrape TO pyjobscrape;
+GRANT ALL ON DATABASE pyjobscrape TO pyjobscrape;
+\c pyjobscrape
+\i pg_schema.sql
+\q
+```
+Make sure you got it right
+```
+psql postgres://pyjobscrape:p@localhost:5432/pyjobscrape
+select * from jobs;
+```
+## Prep python
+```
+python3.10 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 ## Use
-Caffeine is a python package that prevents your system from sleeping when running long-running scripts.
-Run with `caffeinate -i python3.10 pyjobscrape.py`
+`python3.10 pyjobscrape.py`
+### Optional parameters
+--job
+
+--location
+
+--anyoneof
 ## Quit
 `Ctrl-c`
