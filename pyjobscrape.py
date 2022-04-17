@@ -96,6 +96,8 @@ def get_jobs_IDs(url):
                 a_data_jk = a['data-jk']
                 # print(f"a job key {a_data_jk}")
                 list_job_ids.append(a_data_jk)
+    else:
+        print(f"Status code from {url}: {response.status_code}. Text: {response.text}")
 
     return list_job_ids
 
@@ -239,6 +241,8 @@ def get_job(job_page, job_id):
         if description_div is not None:
             job_dict["description"] = description_div.text.strip()
             # print(f'description: {job_dict["description"]}')
+    else:
+        print(f"Status code from {job_url}: {response.status_code}. Text: {response.text}")
 
     return job_dict
 
