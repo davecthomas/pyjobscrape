@@ -90,7 +90,9 @@ def get_jobs_IDs(url):
         pagesoup = soup(response.text, features="html5lib", from_encoding='utf8')
         # Looking for data-jk inside a section id="vjs-container"
         a_list = pagesoup.find_all("a", attrs={"data-jk": True})
-        print(f"Num jobs: {len(a_list)}" )
+        if len(a_list) == 0:
+            print(f"Num jobs: {len(a_list)}" )
+            print(f"Response.text: *****\n\n{response.text}\n\n*****")
         for a in a_list:
             if a.has_attr('data-jk'):
                 a_data_jk = a['data-jk']
@@ -275,6 +277,8 @@ def get_jobsite_SERPs( job_title, job_location, search_term_atleastone):
 
         while len(list_job_ids) == 0:
             list_job_ids = get_jobs_IDs(url)
+            if len(list_job_ids) == 0:
+                return list_jobs        # This is a failure state
 
         if env_dict["randomize_per_page_clicks"] is True:
             page_max_result_clicks_randomizer = round(random.randint( env_dict["page_length"] // 2, env_dict["page_length"]))
