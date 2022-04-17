@@ -22,6 +22,7 @@ GRANT CONNECT ON DATABASE pyjobscrape TO pyjobscrape;
 GRANT ALL ON DATABASE pyjobscrape TO pyjobscrape;
 \c pyjobscrape
 \i pg_schema.sql
+COPY jobs from pg_data.sql delimiter '\t'
 \q
 ```
 Make sure you got it right
