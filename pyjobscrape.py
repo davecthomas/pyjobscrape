@@ -12,8 +12,9 @@ import time
 import requests     # TOR service required locally on port 9050
 from stem import Signal
 from stem.control import Controller
-
 import os
+from settings import load_environment
+import json
 
 list_dict_config_job_sites = [
     {
@@ -22,11 +23,6 @@ list_dict_config_job_sites = [
         "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
         "sleep_time_between_requests": 5, # seconds to sleep between SERP clicks
         "random_sleep_variation": 3, # add some variety to the sleep
-        # Override this with --job on command line
-        "job_titles": ["caregiver"],
-        # Override this with --location on command line
-        "job_locations": ["san diego", "los angeles", "san francisco",
-        "bakersfield", "orange county, ca", "oakland, ca", "san jose, ca", "sacramanto, ca", "riverside county, ca"],
         "job_page": "https://www.indeed.com/viewjob?jk=",
         "max_results": 150, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
         "randomize_per_page_clicks": True # Only select a percentage of page results if True
@@ -265,7 +261,7 @@ def get_job(job_page, job_id):
 #       list_jobs_dict - returned
 #
 def get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone):
-    list_jobs_dict = [] # List of dictionaries of job search results, returned f
+    list_jobs_dict = [] # List of dictionaries of job search results, returned
     pages = config_job_site_dict["max_results"] // config_job_site_dict["page_length"]
     more_pages = True
     page = 1
@@ -340,6 +336,8 @@ def main(argv):
         proxies = use_proxy_list
         my_ip = requests.get('https://ident.me', proxies=proxies).text
         print( f'Requests will originate from IP {my_ip}')
+    else:
+        print('Not using proxies')
 
     ssl._create_default_https_context = ssl._create_unverified_context
     print("\nScraping\n")
@@ -353,15 +351,17 @@ def main(argv):
             list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone)
         else:
             # Optionally override config with command line parms
-            if job_location is None:
-                job_location_list = config_job_site_dict["job_locations"]
-            if job_title is None:
-                job_title_list = config_job_site_dict["job_titles"]
+            if job_location is None and "job_titles" in env_dict:
+                job_location_list = json.loads(env_dict["job_locations"])
+            if job_title is None and "job_titles" in env_dict:
+                job_title_list = json.loads(env_dict["job_titles"])
             if search_term_atleastone is None:
                 search_term_atleastone = ""
 
             for job_title in job_title_list:
+                print(f"job title {job_title}")
                 for job_location in job_location_list:
+                    print(f"job loc {job_location}")
                     list_jobs_dict.append(get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone))
 
         if len(list_jobs_dict) > 0:
@@ -376,12 +376,11 @@ def main(argv):
             print(f'No results.')
 
 if __name__ == "__main__":
-    no_proxy = False
+    env_dict = load_environment()
     use_proxy = True
-    # See if we want to use a proxy (this is set to 0 in Heroku)
-    if "NO_PROXY" in os.environ:
-        no_proxy = bool(os.environ.get("NO_PROXY"))
 
-    if no_proxy != False:
-        use_proxy = False # Doing this to make code more readable
+    # See if we want to use a proxy (this is set to 0 in Heroku)
+    if "NO_PROXY" in env_dict:
+        use_proxy = not bool(env_dict["NO_PROXY"])
+
     main(sys.argv[1:])
