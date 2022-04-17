@@ -90,7 +90,7 @@ def get_jobs_IDs(url):
         pagesoup = soup(response.text, features="html5lib", from_encoding='utf8')
         # Looking for data-jk inside a section id="vjs-container"
         a_list = pagesoup.find_all("a", attrs={"data-jk": True})
-        # print(f"Num jobs: {len(a_list)}" )
+        print(f"Num jobs: {len(a_list)}" )
         for a in a_list:
             if a.has_attr('data-jk'):
                 a_data_jk = a['data-jk']
@@ -138,6 +138,7 @@ def get_job(job_page, job_id):
                 job_dict["job_title"] = title["data-indeed-apply-jobtitle"]
             else:
                 job_dict["job_title"] = None        # This is probably an error in our parsing
+                print(f"No title found for {job_id}")
 
         job_location = pagesoup.find('span', attrs={"class": "indeed-apply-widget",
             "data-indeed-apply-joblocation":True})
