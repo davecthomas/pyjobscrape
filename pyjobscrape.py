@@ -1,33 +1,19 @@
 import sys, getopt
-from urllib.request import Request, urlopen
+# from urllib.request import Request, urlopen
 import urllib.parse
 from bs4 import BeautifulSoup as soup
 import re
 import pandas as pd
 from datetime import datetime
-import webbrowser
+# import webbrowser
 import random
 import ssl
 import time
 import requests     # TOR service required locally on port 9050
 from stem import Signal
 from stem.control import Controller
-import os
-from settings import load_environment
-import json
-
-list_dict_config_job_sites = [
-    {
-        "job_site": "Indeed.com",
-        "url": "https://www.indeed.com/jobs?as_and&as_phr=&as_ttl={}&as_any={}&as_not&as_ttl&as_cmp&jt=parttime&st&sr=directhire&salary&radius=25&l&fromage=any&l={}&start={}&limit={}&sort&psf=advsrch&from=advancedsearch&filter=0",
-        "page_length": 50, # Can be up to 50 for Indeed. Keep it small for testing
-        "sleep_time_between_requests": 5, # seconds to sleep between SERP clicks
-        "random_sleep_variation": 3, # add some variety to the sleep
-        "job_page": "https://www.indeed.com/viewjob?jk=",
-        "max_results": 150, # The maximum number of jobs retried across all pages (but this is reduced by randomization below)
-        "randomize_per_page_clicks": True # Only select a percentage of page results if True
-    }
-]
+from settings import get_settings_dict
+# from csv import to_csv
 
 use_proxy_list = {
     'http': 'socks5://127.0.0.1:9050',
@@ -122,9 +108,9 @@ def is_number(s):
 
 def get_job(job_page, job_id):
     job_url = f'{job_page}{job_id}'
-    job_dict = {"id": job_id, "url": job_url, "job_title": "", "job_location": "", "company": "",
-    "company_rating": None, 	"company_rating_max_potential": None, "company_rating_num_employee_votes": None,
-    "job_type_full_time": "",	"job_type_part_time": "",	"job_type_temporary": "",	"num_candidates": "",
+    job_dict = {"id": job_id, "source": env_dict["job_site"], "url": job_url, "job_title": "", "job_location": "", "company": "",
+    "company_rating": None, "company_rating_max_potential": None, "company_rating_num_employee_votes": None,
+    "job_type_full_time": False,	"job_type_part_time": False,	"job_type_temporary": False,	"num_candidates": 1,
     "pay_min_posted": None,	"pay_max_posted": None,	"pay_min_hourly": None,	"pay_max_hourly": None,	"pay_unit_time": "hourly",
     "description": ""}
     print(f'\tGetting {job_url}')
@@ -260,37 +246,37 @@ def get_job(job_page, job_id):
 #       config_job_site_dict, job_title, job_location - configured or overrides from command line
 #       list_jobs_dict - returned
 #
-def get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone):
-    list_jobs_dict = [] # List of dictionaries of job search results, returned
-    pages = config_job_site_dict["max_results"] // config_job_site_dict["page_length"]
+def get_jobsite_SERPs( job_title, job_location, search_term_atleastone):
+    list_jobs = []
+    # pages = env_dict["max_results"] // env_dict["page_length"]
     more_pages = True
     page = 1
 
     while more_pages:
         list_job_ids = []
-        serp_start_at = (page-1) * config_job_site_dict["page_length"]+1
-        if serp_start_at > config_job_site_dict["max_results"]:
+        serp_start_at = (page-1) * env_dict["page_length"]+1
+        if serp_start_at > env_dict["max_results"]:
             more_pages = False
             continue
 
-        url = config_job_site_dict["url"].format(   # Format the URL to include the job title and results length
+        url = env_dict["url"].format(   # Format the URL to include the job title and results length
             urllib.parse.quote(job_title, safe=""), # add Job title to url
             urllib.parse.quote(search_term_atleastone, safe=""), # add find at least one to url
             urllib.parse.quote(job_location, safe=""),  # add location to url
             serp_start_at,                              # Where to start in SERP
-            config_job_site_dict["page_length"])                            # Add max results per page
+            env_dict["page_length"])                            # Add max results per page
         datetime_string = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f'Looking for {job_title} at {config_job_site_dict["job_site"]} on {datetime_string} via {url}')
+        print(f'Looking for {job_title} at {env_dict["job_site"]} on {datetime_string} via {url}')
 
         while len(list_job_ids) == 0:
             list_job_ids = get_jobs_IDs(url)
 
-        if config_job_site_dict["randomize_per_page_clicks"] is True:
-            page_max_result_clicks_randomizer = round(random.randint( config_job_site_dict["page_length"] // 2, config_job_site_dict["page_length"]))
+        if env_dict["randomize_per_page_clicks"] is True:
+            page_max_result_clicks_randomizer = round(random.randint( env_dict["page_length"] // 2, env_dict["page_length"]))
         else:
-            page_max_result_clicks_randomizer = config_job_site_dict["page_length"]
+            page_max_result_clicks_randomizer = env_dict["page_length"]
         len_returned_list = len(list_job_ids)
-        print(f'Tried to get {config_job_site_dict["page_length"]} job results from page {page} and retrieved {len_returned_list} jobs')
+        print(f'Tried to get {env_dict["page_length"]} job results from page {page} and retrieved {len_returned_list} jobs')
 
         if len_returned_list < page_max_result_clicks_randomizer:
             more_pages = False
@@ -301,16 +287,16 @@ def get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term
             del list_job_ids[page_max_result_clicks_randomizer:]
 
         for job_id in list_job_ids:
-            job_dict = get_job(config_job_site_dict["job_page"], job_id)
-            sleep_per_iteration_rand = config_job_site_dict["sleep_time_between_requests"] + round(random.random()*config_job_site_dict["random_sleep_variation"], 1)
+            job_dict = get_job(env_dict["job_page"], job_id)
+            sleep_per_iteration_rand = env_dict["sleep_time_between_requests"] + round(random.random()*env_dict["random_sleep_variation"], 1)
             # print(f"Sleeping for {sleep_per_iteration_rand}...")
             time.sleep(sleep_per_iteration_rand)
-            list_jobs_dict.append(job_dict)
+            list_jobs.append(job_dict)
 
         list_job_ids.clear()    # We are reusing this in a loop, so make sure to clean it between iterations
         page = page + 1
 
-    return list_jobs_dict
+    return list_jobs
 
 
 def main(argv):
@@ -330,7 +316,6 @@ def main(argv):
             search_term_atleastone = arg
             print(f"Find at least one of: {search_term_atleastone}")
 
-
     if use_proxy:
         # Get my IP Address
         proxies = use_proxy_list
@@ -342,41 +327,43 @@ def main(argv):
     ssl._create_default_https_context = ssl._create_unverified_context
     print("\nScraping\n")
 
-    list_jobs_dict = []
+    list_jobs = []
 
-    # For each configured job site, get as many pages of results as is configured
-    for idx, config_job_site_dict in enumerate(list_dict_config_job_sites):
-        # take overridden location and title from command line
-        if job_title is not None and job_location is not None:
-            list_jobs_dict = get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone)
-        else:
-            # Optionally override config with command line parms
-            if job_location is None and "job_titles" in env_dict:
-                job_location_list = json.loads(env_dict["job_locations"])
-            if job_title is None and "job_titles" in env_dict:
-                job_title_list = json.loads(env_dict["job_titles"])
-            if search_term_atleastone is None:
-                search_term_atleastone = ""
+    # take overridden location and title from command line
+    if job_title is not None and job_location is not None:
+        list_jobs = get_jobsite_SERPs(job_title, job_location, search_term_atleastone)
+    else:
+        # Optionally override config with command line parms
+        if job_location is None and "job_titles" in env_dict:
+            job_location_list = env_dict["job_locations"]
+        if job_title is None and "job_titles" in env_dict:
+            job_title_list = env_dict["job_titles"]
+        if search_term_atleastone is None:
+            search_term_atleastone = ""
 
-            for job_title in job_title_list:
-                print(f"job title {job_title}")
-                for job_location in job_location_list:
-                    print(f"job loc {job_location}")
-                    list_jobs_dict.append(get_jobsite_SERPs(config_job_site_dict, job_title, job_location, search_term_atleastone))
+        for job_title in job_title_list:
+            print(f"job title {job_title}")
+            for job_location in job_location_list:
+                print(f"job loc {job_location}")
+                list_jobs_per_title_location = get_jobsite_SERPs(job_title, job_location, search_term_atleastone)
+                # print(f"partial list: {list_jobs_per_title_location}")
+                list_jobs.extend(list_jobs_per_title_location)
 
-        if len(list_jobs_dict) > 0:
-            pd_jobs = pd.DataFrame(list_jobs_dict)
-            # stats = pd_jobs.describe(include='all')
-            # print (stats)
-            datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
-            csv_path = f'./{datetime_string}_{job_location}_{job_title}_{search_term_atleastone}_{config_job_site_dict["job_site"]}.csv'.replace(" ", "_")
-            pd_jobs.to_csv(csv_path)
-            print(f'Done. Saved results to {csv_path}')
-        else:
-            print(f'No results.')
+    if len(list_jobs) > 0:
+        pd_jobs = pd.DataFrame(list_jobs)
+        # stats = pd_jobs.describe(include='all')
+        # print (stats)
+        print(pd_jobs)
+        datetime_string = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        csv_path = f'./{datetime_string}_{job_location}_{job_title}_{search_term_atleastone}_{env_dict["job_site"]}.csv'.replace(" ", "_")
+        # to_csv(csv_path, list_jobs)
+        pd_jobs.to_csv(csv_path)
+        print(f'Done. Saved results to {csv_path}')
+    else:
+        print(f'No results.')
 
 if __name__ == "__main__":
-    env_dict = load_environment()
+    env_dict = get_settings_dict()
     use_proxy = True
 
     # See if we want to use a proxy (this is set to 0 in Heroku)

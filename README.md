@@ -36,6 +36,14 @@ python3.10 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
+## .env file
+For local, create .env. For Heroku, add config vars in Settings. 
+```
+DATABASE_URL = <url>
+NO_PROXY = TRUE | FALSE
+job_titles = ["title1", "title2", ...]
+job_locations = ["loc1", "loc2", ...]
+```
 ## Use
 `python3.10 pyjobscrape.py`
 ### Optional parameters
