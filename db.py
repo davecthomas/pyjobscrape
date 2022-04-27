@@ -21,6 +21,10 @@ class pg:
         cursor.execute(sql)
         return cursor.fetchall()
 
+    def insert(self, sql):
+        self.conn.cursor.execute(sql)
+        return self.conn.cursor.fetchone()[0]
+
     def __exit__(self, exc_type, exc_value, traceback):
         if self.conn is not None:
             self.conn.close()

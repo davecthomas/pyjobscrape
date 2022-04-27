@@ -210,7 +210,7 @@ class job_scrape:
 
         while more_pages:
             list_job_ids = []
-            serp_start_at = (page - 1) * self.env_dict["page_length"] + 1
+            serp_start_at = (page - 1) * self.env_dict["page_length"]
             if serp_start_at > self.env_dict["max_results"]:
                 more_pages = False
                 continue

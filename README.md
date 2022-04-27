@@ -13,7 +13,7 @@ scrapes jobs from job sites
 brew install postgres
 brew services start postgres
 /usr/local/opt/postgres/bin/createuser -s postgres
-psql pyjobscrape -U postges -h localhost
+psql pyjobscrape -U postgres -h localhost
 CREATE ROLE pyjobscrape;
 ALTER ROLE pyjobscrape WITH LOGIN PASSWORD '<your password>' NOSUPERUSER NOCREATEDB NOCREATEROLE;
 CREATE DATABASE pyjobscrape OWNER pyjobscrape;
