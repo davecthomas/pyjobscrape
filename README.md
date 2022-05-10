@@ -1,5 +1,5 @@
 # pyjobscrape 
-scrapes jobs from job sites
+scrapes jobs from Indeed
 ## Environment
 `brew install python`
 
@@ -27,7 +27,7 @@ COPY jobs from pg_data.sql delimiter '\t'
 ```
 Make sure you got it right
 ```
-psql postgres://pyjobscrape:p@localhost:5432/pyjobscrape
+psql postgres://pyjobscrape:<password>@localhost:5432/pyjobscrape
 select * from jobs;
 ```
 ## Prep python
