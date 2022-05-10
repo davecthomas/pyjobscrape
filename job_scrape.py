@@ -9,7 +9,8 @@ from datetime import datetime
 import re
 import random
 from settings import settings
-
+from stem import Signal
+from stem.control import Controller
 
 def is_number(s):
     try:
@@ -17,6 +18,34 @@ def is_number(s):
         return True
     except ValueError:
         return False
+
+
+def renew_ip(env_dict):
+    with Controller.from_port(port=9051) as controller:
+        controller.authenticate(password=env_dict["tor_password"])
+        controller.signal(Signal.NEWNYM)
+    time.sleep(5)
+
+    session = requests.session()
+
+    # TO Request URL with SOCKS over TOR
+    session.proxies = {}
+    session.proxies['http'] = 'socks5h://localhost:9050'
+    session.proxies['https'] = 'socks5h://localhost:9050'
+    try:
+        r = session.get('http://httpbin.org/ip')
+    except Exception as e:
+        print(str(e))
+    else:
+        print(f"New IP: {r.text}")
+
+
+def rand_sleep(env_dict):
+    sleep_per_iteration_rand = env_dict["sleep_time_between_requests"] + round(
+        random.random() * env_dict["random_sleep_variation"], 1)
+    # print(f"Sleeping for {sleep_per_iteration_rand}...")
+    time.sleep(sleep_per_iteration_rand)
+
 
 
 class job_scrape:
@@ -86,8 +115,8 @@ class job_scrape:
                 if title is not None:
                     job_dict["job_title"] = title["data-indeed-apply-jobtitle"]
                 else:
-                    job_dict["job_title"] = None  # This is probably an error in our parsing
-                    print(f"No title found for {job_id}")
+                    print(f"No title found for {job_id}. Assume Captcha block. Renewing IP...")
+                    renew_ip(self.env_dict)
                     return None
 
             job_location = pagesoup.find('span', attrs={"class": "indeed-apply-widget",
@@ -168,7 +197,6 @@ class job_scrape:
                 if pay_per_unit_time_idx != -1:
                     job_dict["pay_unit_time"] = "hour"
 
-                # TO DO - convert pay to hourly in these next 2 cases?
                 elif pay_text_raw.find("day") != -1:
                     job_dict["pay_unit_time"] = "day"
                     pay_conversion_to_hours = 8.0
@@ -209,6 +237,9 @@ class job_scrape:
         page = 1
 
         while more_pages:
+            if (random.randint(1, 100) % 10) == 0:
+                renew_ip(self.env_dict)
+
             list_job_ids = []
             serp_start_at = (page - 1) * self.env_dict["page_length"]
             if serp_start_at > self.env_dict["max_results"]:
@@ -248,10 +279,7 @@ class job_scrape:
 
             for job_id in list_job_ids:
                 job_dict = self.get_job(self.env_dict["job_page"], job_id)
-                sleep_per_iteration_rand = self.env_dict["sleep_time_between_requests"] + round(
-                    random.random() * self.env_dict["random_sleep_variation"], 1)
-                # print(f"Sleeping for {sleep_per_iteration_rand}...")
-                time.sleep(sleep_per_iteration_rand)
+                rand_sleep(self.env_dict)
                 if job_dict is not None:
                     list_jobs.append(job_dict)
 
