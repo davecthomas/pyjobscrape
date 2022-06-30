@@ -52,7 +52,7 @@ class job_scrape:
     def __init__(self):
         s = settings()
         self.env_dict = s.get_settings()
-        self.conn = pg()
+        # self.conn = pg()
 
     def get_job_IDs(self, url):
         list_job_ids = []
@@ -65,11 +65,12 @@ class job_scrape:
         response = requests.get(url, proxies=proxies, headers=headers)
 
         if response.status_code == 200:
-            pagesoup = soup(response.text, features="html5lib", from_encoding='utf8')
+            pagesoup = soup(response.text, features="html5lib")
             # Looking for data-jk inside a section id="vjs-container"
             a_list = pagesoup.find_all("a", attrs={"data-jk": True})
             if len(a_list) == 0:
-                print(f"Num jobs: {len(a_list)}")
+                print(f"Num jobs: {len(a_list)}. Renewing IP...")
+                renew_ip(self.env_dict)
                 # print(f"Response.text: *****\n\n{response.text}\n\n*****")
             for a in a_list:
                 if a.has_attr('data-jk'):
@@ -235,6 +236,9 @@ class job_scrape:
         # pages = env_dict["max_results"] // env_dict["page_length"]
         more_pages = True
         page = 1
+
+        if not self.env_dict["NO_PROXY"]:
+            renew_ip(self.env_dict)
 
         while more_pages:
             if (random.randint(1, 100) % 10) == 0:
